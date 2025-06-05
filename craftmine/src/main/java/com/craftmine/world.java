@@ -9,7 +9,7 @@ public class world extends Node {
     private AssetManager assetManager;
     OpenSimplexNoise noise;
 
-    public final int numChunks = 3; // number of chunks per dimension
+    public final int numChunks = 4; // number of chunks per dimension (ex: n = 4, 16 chunks in a 4x4 grid)
     // private int chunks[][][] = new int[numChunks][numChunks][numChunks];
 
     public world(AssetManager assetManager, OpenSimplexNoise noise) {

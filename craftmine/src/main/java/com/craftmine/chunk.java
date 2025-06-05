@@ -45,7 +45,7 @@ public class chunk extends Node {
             for (int z = 0; z < size; z++) {
                 int worldX = x + chunkX * size;
                 int worldZ = z + chunkZ * size;
-                RangedValue value = noise.getNoise2D(worldX * 1.5, worldZ * 1.5);
+                RangedValue value = noise.getNoise2D(worldX * 2, worldZ * 2);
                 double shiftedValue = value.getValue(new Range(0, 16));
                 for (int y = 0; y < 16; y++) {
                     if (y < shiftedValue) {

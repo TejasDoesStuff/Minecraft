@@ -47,6 +47,6 @@ public class app extends SimpleApplication {
         fpp.addFilter(dlsf);
         viewPort.addProcessor(fpp);
 
-        flyCam.setMoveSpeed(10f);
+        flyCam.setMoveSpeed(20f);
     }
 }

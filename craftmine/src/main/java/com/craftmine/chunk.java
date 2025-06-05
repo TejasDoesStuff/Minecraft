@@ -21,11 +21,12 @@ public class chunk extends Node {
     OpenSimplexNoise noise;
 
     public final int size = 16;
+    public final int sizeY = 256;
 
     int chunkX;
     int chunkZ;
 
-    private int[][][] blocks = new int[size][size][size];
+    private int[][][] blocks = new int[size][sizeY][size];
 
     Mesh mesh = new Mesh();
 
@@ -44,10 +45,9 @@ public class chunk extends Node {
             for (int z = 0; z < size; z++) {
                 int worldX = x + chunkX * size;
                 int worldZ = z + chunkZ * size;
-
-                RangedValue value = noise.getNoise2D(worldX, worldZ);
-                double shiftedValue = value.getValue(new Range(0, 17));
-                for (int y = 0; y < size; y++) {
+                RangedValue value = noise.getNoise2D(worldX * 1.5, worldZ * 1.5);
+                double shiftedValue = value.getValue(new Range(0, 16));
+                for (int y = 0; y < 16; y++) {
                     if (y < shiftedValue) {
                         blocks[x][y][z] = 1;
                     } else {

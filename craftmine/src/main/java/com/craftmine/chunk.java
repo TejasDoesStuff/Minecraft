@@ -10,7 +10,6 @@ import com.jme3.scene.Geometry;
 import com.jme3.scene.Mesh;
 import com.jme3.scene.Node;
 import com.jme3.scene.VertexBuffer;
-import com.jme3.scene.shape.Box;
 import com.jme3.util.BufferUtils;
 import com.raylabz.opensimplex.OpenSimplexNoise;
 import com.raylabz.opensimplex.Range;
@@ -23,22 +22,30 @@ public class chunk extends Node {
 
     public final int size = 16;
 
+    int chunkX;
+    int chunkZ;
+
     private int[][][] blocks = new int[size][size][size];
 
     Mesh mesh = new Mesh();
 
-    public chunk(AssetManager assetManager) {
+    public chunk(AssetManager assetManager, OpenSimplexNoise noise, int x, int z) {
         this.assetManager = assetManager;
-        noise = new OpenSimplexNoise(System.currentTimeMillis());
+        this.noise = noise;
+        chunkX = x;
+        chunkZ = z;
         generateWorld();
         checkBlocks();
-        addBorder();
+        // addBorder();
     }
 
     private void generateWorld() {
         for (int x = 0; x < size; x++) {
             for (int z = 0; z < size; z++) {
-                RangedValue value = noise.getNoise2D(x, z);
+                int worldX = x + chunkX * size;
+                int worldZ = z + chunkZ * size;
+
+                RangedValue value = noise.getNoise2D(worldX, worldZ);
                 double shiftedValue = value.getValue(new Range(0, 17));
                 for (int y = 0; y < size; y++) {
                     if (y < shiftedValue) {
@@ -54,6 +61,7 @@ public class chunk extends Node {
     // using a mesh to make rendering better --------------------------------------
     private void checkBlocks() {
         List<Float> vertexBuffer = new ArrayList<>();
+        List<Float> normalBuffer = new ArrayList<>();
         List<Integer> indexBuffer = new ArrayList<>();
         int vertexCount = 0;
 
@@ -61,19 +69,19 @@ public class chunk extends Node {
             for (int y = 0; y < size; y++) {
                 for (int z = 0; z < size; z++) {
                     if (blocks[x][y][z] != 0 && isVisible(x, y, z)) {
-                        vertexCount = addExposedFaces(x, y, z, vertexBuffer, indexBuffer, vertexCount);
+                        vertexCount = addExposedFaces(x, y, z, vertexBuffer, normalBuffer, indexBuffer, vertexCount);
                     }
                 }
             }
         }
 
         mesh.setBuffer(VertexBuffer.Type.Position, 3, BufferUtils.createFloatBuffer(toFloatArray(vertexBuffer)));
+        mesh.setBuffer(VertexBuffer.Type.Normal, 3, BufferUtils.createFloatBuffer(toFloatArray(normalBuffer)));
         mesh.setBuffer(VertexBuffer.Type.Index, 3, BufferUtils.createIntBuffer(toIntArray(indexBuffer)));
         mesh.updateBound();
 
         Geometry geom = new Geometry("ChunkMesh", mesh);
         Material mat = new Material(assetManager, "Common/MatDefs/Light/Lighting.j3md");
-        // mat.getAdditionalRenderState().setCullMode(RenderState.CullMode.Back);
         mat.setColor("Diffuse", ColorRGBA.White);
         mat.setColor("Ambient", ColorRGBA.White.mult(0.3f));
         mat.setColor("Specular", ColorRGBA.White);
@@ -86,9 +94,10 @@ public class chunk extends Node {
         System.out.println("Created mesh with " + (vertexBuffer.size() / 3) + " vertices and " + (indexBuffer.size() / 3) + " triangles");
     }
 
-    private int addExposedFaces(int x, int y, int z, List<Float> vertexBuffer, List<Integer> indexBuffer, int vertexCount) {
+    private int addExposedFaces(int x, int y, int z, List<Float> vertexBuffer, List<Float> normalBuffer, List<Integer> indexBuffer, int vertexCount) {
         int currentVertexCount = vertexCount;
 
+        // AI GENERATED VERTICIES ( i got lazy )
         float[][] faceVertices = {
             // Top
             {x - 0.5f, y + 0.5f, z - 0.5f, x - 0.5f, y + 0.5f, z + 0.5f, x + 0.5f, y + 0.5f, z + 0.5f, x + 0.5f, y + 0.5f, z - 0.5f},
@@ -104,25 +113,34 @@ public class chunk extends Node {
             {x - 0.5f, y - 0.5f, z - 0.5f, x - 0.5f, y + 0.5f, z - 0.5f, x + 0.5f, y + 0.5f, z - 0.5f, x + 0.5f, y - 0.5f, z - 0.5f}
         };
 
+        float[][] faceNormals = {
+            {0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0}, // Top
+            {0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0}, // Bottom 
+            {-1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0}, // Left
+            {1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0}, // Right
+            {0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1}, // Front
+            {0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1} // Back
+        };
+
         int[] faceIndices = {0, 1, 2, 2, 3, 0};
 
         if (y + 1 >= size || blocks[x][y + 1][z] == 0) { // Top
-            currentVertexCount = addFace(faceVertices[0], faceIndices, vertexBuffer, indexBuffer, currentVertexCount);
+            currentVertexCount = addFace(faceVertices[0], faceNormals[0], faceIndices, vertexBuffer, normalBuffer, indexBuffer, currentVertexCount);
         }
         if (y - 1 < 0 || blocks[x][y - 1][z] == 0) { // Bottom
-            currentVertexCount = addFace(faceVertices[1], faceIndices, vertexBuffer, indexBuffer, currentVertexCount);
+            currentVertexCount = addFace(faceVertices[1], faceNormals[1], faceIndices, vertexBuffer, normalBuffer, indexBuffer, currentVertexCount);
         }
         if (x - 1 < 0 || blocks[x - 1][y][z] == 0) { // Left
-            currentVertexCount = addFace(faceVertices[2], faceIndices, vertexBuffer, indexBuffer, currentVertexCount);
+            currentVertexCount = addFace(faceVertices[2], faceNormals[2], faceIndices, vertexBuffer, normalBuffer, indexBuffer, currentVertexCount);
         }
         if (x + 1 >= size || blocks[x + 1][y][z] == 0) { // Right
-            currentVertexCount = addFace(faceVertices[3], faceIndices, vertexBuffer, indexBuffer, currentVertexCount);
+            currentVertexCount = addFace(faceVertices[3], faceNormals[3], faceIndices, vertexBuffer, normalBuffer, indexBuffer, currentVertexCount);
         }
         if (z + 1 >= size || blocks[x][y][z + 1] == 0) { // Front
-            currentVertexCount = addFace(faceVertices[4], faceIndices, vertexBuffer, indexBuffer, currentVertexCount);
+            currentVertexCount = addFace(faceVertices[4], faceNormals[4], faceIndices, vertexBuffer, normalBuffer, indexBuffer, currentVertexCount);
         }
         if (z - 1 < 0 || blocks[x][y][z - 1] == 0) { // Back
-            currentVertexCount = addFace(faceVertices[5], faceIndices, vertexBuffer, indexBuffer, currentVertexCount);
+            currentVertexCount = addFace(faceVertices[5], faceNormals[5], faceIndices, vertexBuffer, normalBuffer, indexBuffer, currentVertexCount);
         }
 
         return currentVertexCount;
@@ -137,11 +155,17 @@ public class chunk extends Node {
                 || (z + 1 >= size || blocks[x][y][z + 1] == 0);
     }
 
-    private int addFace(float[] vertices, int[] indices, List<Float> vertexBuffer, List<Integer> indexBuffer, int vertexCount) {
+    private int addFace(float[] vertices, float[] normals, int[] indices, List<Float> vertexBuffer, List<Float> normalBuffer, List<Integer> indexBuffer, int vertexCount) {
         for (int i = 0; i < vertices.length; i += 3) {
             vertexBuffer.add(vertices[i]);     // x
             vertexBuffer.add(vertices[i + 1]); // y
             vertexBuffer.add(vertices[i + 2]); // z
+        }
+
+        for (int i = 0; i < normals.length; i += 3) {
+            normalBuffer.add(normals[i]);     // nx
+            normalBuffer.add(normals[i + 1]); // ny
+            normalBuffer.add(normals[i + 2]); // nz
         }
 
         for (int index : indices) {
@@ -189,24 +213,21 @@ public class chunk extends Node {
     // }
     //
     // AI GENERATED FUNCTION - adds a red wireframe border around the chunk
-    private void addBorder() {
-        // Create a wireframe box to represent the chunk's border
-        Box borderBox = new Box(size / 2f, size / 2f, size / 2f);
-        Geometry borderGeom = new Geometry("ChunkBorder", borderBox);
-
-        // Set the border material to a wireframe style
-        Material borderMat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-        borderMat.setColor("Color", ColorRGBA.Red); // Border color
-        borderMat.getAdditionalRenderState().setWireframe(true); // Enable wireframe mode
-        borderGeom.setMaterial(borderMat);
-
-        // Position the border to align with the chunk
-        borderGeom.setLocalTranslation(size / 2f, size / 2f, size / 2f);
-
-        // Attach the border to the chunk
-        this.attachChild(borderGeom);
-    }
-
+    // private void addBorder() {
+    //     // Create a wireframe box to represent the chunk's border
+    //     Box borderBox = new Box(size / 2f, size / 2f, size / 2f);
+    //     Geometry borderGeom = new Geometry("ChunkBorder", borderBox);
+    //     // Set the border material to a wireframe style
+    //     Material borderMat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+    //     borderMat.setColor("Color", ColorRGBA.Red); // Border color
+    //     borderMat.getAdditionalRenderState().setWireframe(true); // Enable wireframe mode
+    //     borderGeom.setMaterial(borderMat);
+    //     // Position the border to align with the chunk
+    //     borderGeom.setLocalTranslation(size / 2f, size / 2f, size / 2f);
+    //     // Attach the border to the chunk
+    //     this.attachChild(borderGeom);
+    // }
+    //
     // getters and setters for blocks
     public int getBlock(int x, int y, int z) {
         return blocks[x][y][z];

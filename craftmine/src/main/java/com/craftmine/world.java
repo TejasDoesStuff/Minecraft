@@ -17,6 +17,7 @@ public class world extends Node {
         generateWorld(numChunks);
     }
 
+    // Generates the world by creating chunks in a grid pattern
     private void generateWorld(int numChunks) {
         for (int x = 0; x < numChunks; x++) {
             for (int z = 0; z < numChunks; z++) {

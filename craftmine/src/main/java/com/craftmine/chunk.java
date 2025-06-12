@@ -27,9 +27,9 @@ public class chunk extends Node {
     int chunkX;
     int chunkZ;
 
-    private block[][][] blocks = new block[SIZE][SIZEY][SIZE];
+    private block[][][] blocks = new block[SIZE][SIZEY][SIZE]; // 3D array of blocks in a single chunk
 
-    Mesh mesh = new Mesh();
+    Mesh mesh = new Mesh(); // Mesh for rendering block faces
 
     public chunk(AssetManager assetManager, OpenSimplexNoise noise, int x, int z) {
         this.assetManager = assetManager;
@@ -50,7 +50,7 @@ public class chunk extends Node {
                 RangedValue value = noise.getNoise2D(worldX * 0.5, worldZ * 0.5);
                 double shiftedValue = value.getValue(new Range(0, groundLevel + 32)); // scales the noise value to a range between the ground level
 
-                // if the noise 
+                // if the noise is above than the ground level at a point it generates a block
                 for (int y = 0; y < SIZEY; y++) {
                     int distanceFromSurface = (int) (shiftedValue - y);
 
@@ -94,8 +94,10 @@ public class chunk extends Node {
         mesh.setBuffer(VertexBuffer.Type.Color, 4, BufferUtils.createFloatBuffer(toFloatArray(colorBuffer)));
         mesh.updateBound();
 
+        // creates the material and geometry for each vertex in the mesh
         Geometry geom = new Geometry("ChunkMesh", mesh);
         Material mat = new Material(assetManager, "Common/MatDefs/Light/Lighting.j3md");
+        // gets the color from the block at the point and shades the material that color
         mat.setBoolean("UseVertexColor", true);
         for (int x = 0; x < SIZE; x++) {
             for (int y = 0; y < SIZEY; y++) {
@@ -107,6 +109,7 @@ public class chunk extends Node {
                 }
             }
         }
+        // allows the material to be shaded by the scenes lighting
         mat.setColor("Ambient", ColorRGBA.White.mult(0.3f));
         mat.setColor("Specular", ColorRGBA.White);
         mat.setFloat("Shininess", 64f);
@@ -118,6 +121,7 @@ public class chunk extends Node {
         System.out.println("Created mesh with " + (vertexBuffer.size() / 3) + " vertices and " + (indexBuffer.size() / 3) + " triangles");
     }
 
+    // goes through each block and adds the vertexes of exposed faces to a list to be rendered
     private int addExposedFaces(int x, int y, int z, List<Float> vertexBuffer, List<Float> normalBuffer, List<Integer> indexBuffer, List<Float> colorBuffer, int vertexCount) {
         int currentVertexCount = vertexCount;
 
@@ -172,6 +176,7 @@ public class chunk extends Node {
         return currentVertexCount;
     }
 
+    // returns the visibility of a face of a block based off the surrounding blocks
     private boolean isVisible(int x, int y, int z) {
         return (x - 1 < 0 || blocks[x - 1][y][z].equals(block.getBlock(block.AIR)))
                 || (x + 1 >= SIZE || blocks[x + 1][y][z].equals(block.getBlock(block.AIR)))
@@ -181,6 +186,7 @@ public class chunk extends Node {
                 || (z + 1 >= SIZE || blocks[x][y][z + 1].equals(block.getBlock(block.AIR)));
     }
 
+    // adds the vertices and normals of a face to the buffers and returns the new vertex count
     private int addFace(float[] vertices, float[] normals, int[] indices, List<Float> vertexBuffer, List<Float> normalBuffer, List<Integer> indexBuffer, List<Float> colorBuffer, ColorRGBA blockColor, int vertexCount) {
         for (int i = 0; i < vertices.length; i += 3) {
             vertexBuffer.add(vertices[i]);     // x

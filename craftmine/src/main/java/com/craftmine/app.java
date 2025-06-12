@@ -25,7 +25,7 @@ public class app extends SimpleApplication {
 
         noise = new OpenSimplexNoise(System.currentTimeMillis()); // create a random noisemap for the terrain
 
-        world w = new world(assetManager, noise, caveNoise); // creates a world with the 
+        world w = new world(assetManager, noise); // create a new world with the asset manager and noise map
 
         rootNode.attachChild(w); // add the world to the main frame
 

@@ -13,7 +13,6 @@ public class world extends Node {
 
     public world(AssetManager assetManager, OpenSimplexNoise noise) {
         this.noise = noise;
-        this.caveNoise = caveNoise;
         this.assetManager = assetManager;
         generateWorld(numChunks);
     }

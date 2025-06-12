@@ -21,20 +21,27 @@ public class app extends SimpleApplication {
 
     @Override
     public void simpleInitApp() {
-        noise = new OpenSimplexNoise(System.currentTimeMillis()); // create a random noisemap 
-        world w = new world(assetManager, noise);
-        rootNode.attachChild(w);
+        block.printRegistry();
 
+        noise = new OpenSimplexNoise(System.currentTimeMillis()); // create a random noisemap for the terrain
+
+        world w = new world(assetManager, noise, caveNoise); // creates a world with the 
+
+        rootNode.attachChild(w); // add the world to the main frame
+
+        // creates sun lighting
         DirectionalLight sun = new DirectionalLight();
         sun.setColor(ColorRGBA.White);
-        sun.setDirection(new Vector3f(-0.5f, -1f, -0.5f).normalizeLocal());
+        sun.setDirection(
+                new Vector3f(-0.5f, -1f, -0.5f).normalizeLocal());
         rootNode.addLight(sun);
 
+        // creates ambient lighting
         AmbientLight ambientLight = new AmbientLight();
         ambientLight.setColor(ColorRGBA.White.mult(0.3f));
         rootNode.addLight(ambientLight);
 
-        /* Drop shadows */
+        // creates shadow rendering
         final int SHADOWMAP_SIZE = 1024;
         DirectionalLightShadowRenderer dlsr = new DirectionalLightShadowRenderer(assetManager, SHADOWMAP_SIZE, 3);
         dlsr.setLight(sun);
@@ -42,11 +49,15 @@ public class app extends SimpleApplication {
 
         DirectionalLightShadowFilter dlsf = new DirectionalLightShadowFilter(assetManager, SHADOWMAP_SIZE, 3);
         dlsf.setLight(sun);
-        dlsf.setEnabled(true);
+        dlsf.setEnabled(
+                true);
+
+        // adds the shadow filter to the viewport
         FilterPostProcessor fpp = new FilterPostProcessor(assetManager);
         fpp.addFilter(dlsf);
         viewPort.addProcessor(fpp);
 
-        flyCam.setMoveSpeed(20f);
+        flyCam.setMoveSpeed(50f); // increases movement speed
+
     }
 }

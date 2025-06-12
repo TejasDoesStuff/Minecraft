@@ -20,13 +20,14 @@ public class chunk extends Node {
     private AssetManager assetManager;
     OpenSimplexNoise noise;
 
-    public final int size = 16;
-    public final int sizeY = 256;
+    public final int SIZE = 16;
+    public final int SIZEY = 256;
+    public final int groundLevel = 64;
 
     int chunkX;
     int chunkZ;
 
-    private int[][][] blocks = new int[size][sizeY][size];
+    private block[][][] blocks = new block[SIZE][SIZEY][SIZE];
 
     Mesh mesh = new Mesh();
 
@@ -37,21 +38,30 @@ public class chunk extends Node {
         chunkZ = z;
         generateWorld();
         checkBlocks();
-        // addBorder();
     }
 
+    // uses the noise map to generate a world pattern
     private void generateWorld() {
-        for (int x = 0; x < size; x++) {
-            for (int z = 0; z < size; z++) {
-                int worldX = x + chunkX * size;
-                int worldZ = z + chunkZ * size;
-                RangedValue value = noise.getNoise2D(worldX * 2, worldZ * 2);
-                double shiftedValue = value.getValue(new Range(0, 16));
-                for (int y = 0; y < 16; y++) {
-                    if (y < shiftedValue) {
-                        blocks[x][y][z] = 1;
+        for (int x = 0; x < SIZE; x++) {
+            for (int z = 0; z < SIZE; z++) {
+                // grabs the noise values at a certain block
+                int worldX = x + chunkX * SIZE;
+                int worldZ = z + chunkZ * SIZE;
+                RangedValue value = noise.getNoise2D(worldX * 0.5, worldZ * 0.5);
+                double shiftedValue = value.getValue(new Range(0, groundLevel + 32)); // scales the noise value to a range between the ground level
+
+                // if the noise 
+                for (int y = 0; y < SIZEY; y++) {
+                    int distanceFromSurface = (int) (shiftedValue - y);
+
+                    if (distanceFromSurface > 5) {
+                        blocks[x][y][z] = block.getBlock(block.STONE);
+                    } else if (distanceFromSurface > 0) {
+                        blocks[x][y][z] = block.getBlock(block.DIRT);
+                    } else if (distanceFromSurface == 0) {
+                        blocks[x][y][z] = block.getBlock(block.GRASS);
                     } else {
-                        blocks[x][y][z] = 0;
+                        blocks[x][y][z] = block.getBlock(block.AIR);
                     }
                 }
             }
@@ -63,26 +73,40 @@ public class chunk extends Node {
         List<Float> vertexBuffer = new ArrayList<>();
         List<Float> normalBuffer = new ArrayList<>();
         List<Integer> indexBuffer = new ArrayList<>();
+        List<Float> colorBuffer = new ArrayList<>();
         int vertexCount = 0;
 
-        for (int x = 0; x < size; x++) {
-            for (int y = 0; y < size; y++) {
-                for (int z = 0; z < size; z++) {
-                    if (blocks[x][y][z] != 0 && isVisible(x, y, z)) {
-                        vertexCount = addExposedFaces(x, y, z, vertexBuffer, normalBuffer, indexBuffer, vertexCount);
+        // gets all the faces that are next to air blocks to add them to the mesh
+        for (int x = 0; x < SIZE; x++) {
+            for (int y = 0; y < SIZEY; y++) {
+                for (int z = 0; z < SIZE; z++) {
+                    if (!blocks[x][y][z].equals(block.getBlock(block.AIR)) && isVisible(x, y, z)) {
+                        vertexCount = addExposedFaces(x, y, z, vertexBuffer, normalBuffer, indexBuffer, colorBuffer, vertexCount);
                     }
                 }
             }
         }
 
+        // renders the mesh
         mesh.setBuffer(VertexBuffer.Type.Position, 3, BufferUtils.createFloatBuffer(toFloatArray(vertexBuffer)));
         mesh.setBuffer(VertexBuffer.Type.Normal, 3, BufferUtils.createFloatBuffer(toFloatArray(normalBuffer)));
         mesh.setBuffer(VertexBuffer.Type.Index, 3, BufferUtils.createIntBuffer(toIntArray(indexBuffer)));
+        mesh.setBuffer(VertexBuffer.Type.Color, 4, BufferUtils.createFloatBuffer(toFloatArray(colorBuffer)));
         mesh.updateBound();
 
         Geometry geom = new Geometry("ChunkMesh", mesh);
         Material mat = new Material(assetManager, "Common/MatDefs/Light/Lighting.j3md");
-        mat.setColor("Diffuse", ColorRGBA.White);
+        mat.setBoolean("UseVertexColor", true);
+        for (int x = 0; x < SIZE; x++) {
+            for (int y = 0; y < SIZEY; y++) {
+                for (int z = 0; z < SIZE; z++) {
+                    if (!blocks[x][y][z].equals(block.getBlock(block.AIR))) {
+                        mat.setColor("Diffuse", blocks[x][y][z].getColor());
+                        break;
+                    }
+                }
+            }
+        }
         mat.setColor("Ambient", ColorRGBA.White.mult(0.3f));
         mat.setColor("Specular", ColorRGBA.White);
         mat.setFloat("Shininess", 64f);
@@ -94,8 +118,10 @@ public class chunk extends Node {
         System.out.println("Created mesh with " + (vertexBuffer.size() / 3) + " vertices and " + (indexBuffer.size() / 3) + " triangles");
     }
 
-    private int addExposedFaces(int x, int y, int z, List<Float> vertexBuffer, List<Float> normalBuffer, List<Integer> indexBuffer, int vertexCount) {
+    private int addExposedFaces(int x, int y, int z, List<Float> vertexBuffer, List<Float> normalBuffer, List<Integer> indexBuffer, List<Float> colorBuffer, int vertexCount) {
         int currentVertexCount = vertexCount;
+
+        ColorRGBA blockColor = blocks[x][y][z].getColor();
 
         // AI GENERATED VERTICIES ( i got lazy )
         float[][] faceVertices = {
@@ -124,38 +150,38 @@ public class chunk extends Node {
 
         int[] faceIndices = {0, 1, 2, 2, 3, 0};
 
-        if (y + 1 >= size || blocks[x][y + 1][z] == 0) { // Top
-            currentVertexCount = addFace(faceVertices[0], faceNormals[0], faceIndices, vertexBuffer, normalBuffer, indexBuffer, currentVertexCount);
+        if (y + 1 >= SIZEY || blocks[x][y + 1][z].equals(block.getBlock(block.AIR))) { // Top
+            currentVertexCount = addFace(faceVertices[0], faceNormals[0], faceIndices, vertexBuffer, normalBuffer, indexBuffer, colorBuffer, blockColor, currentVertexCount);
         }
-        if (y - 1 < 0 || blocks[x][y - 1][z] == 0) { // Bottom
-            currentVertexCount = addFace(faceVertices[1], faceNormals[1], faceIndices, vertexBuffer, normalBuffer, indexBuffer, currentVertexCount);
+        if (y - 1 < 0 || blocks[x][y - 1][z].equals(block.getBlock(block.AIR))) { // Bottom
+            currentVertexCount = addFace(faceVertices[1], faceNormals[1], faceIndices, vertexBuffer, normalBuffer, indexBuffer, colorBuffer, blockColor, currentVertexCount);
         }
-        if (x - 1 < 0 || blocks[x - 1][y][z] == 0) { // Left
-            currentVertexCount = addFace(faceVertices[2], faceNormals[2], faceIndices, vertexBuffer, normalBuffer, indexBuffer, currentVertexCount);
+        if (x - 1 < 0 || blocks[x - 1][y][z].equals(block.getBlock(block.AIR))) { // Left
+            currentVertexCount = addFace(faceVertices[2], faceNormals[2], faceIndices, vertexBuffer, normalBuffer, indexBuffer, colorBuffer, blockColor, currentVertexCount);
         }
-        if (x + 1 >= size || blocks[x + 1][y][z] == 0) { // Right
-            currentVertexCount = addFace(faceVertices[3], faceNormals[3], faceIndices, vertexBuffer, normalBuffer, indexBuffer, currentVertexCount);
+        if (x + 1 >= SIZE || blocks[x + 1][y][z].equals(block.getBlock(block.AIR))) { // Right
+            currentVertexCount = addFace(faceVertices[3], faceNormals[3], faceIndices, vertexBuffer, normalBuffer, indexBuffer, colorBuffer, blockColor, currentVertexCount);
         }
-        if (z + 1 >= size || blocks[x][y][z + 1] == 0) { // Front
-            currentVertexCount = addFace(faceVertices[4], faceNormals[4], faceIndices, vertexBuffer, normalBuffer, indexBuffer, currentVertexCount);
+        if (z + 1 >= SIZE || blocks[x][y][z + 1].equals(block.getBlock(block.AIR))) { // Front
+            currentVertexCount = addFace(faceVertices[4], faceNormals[4], faceIndices, vertexBuffer, normalBuffer, indexBuffer, colorBuffer, blockColor, currentVertexCount);
         }
-        if (z - 1 < 0 || blocks[x][y][z - 1] == 0) { // Back
-            currentVertexCount = addFace(faceVertices[5], faceNormals[5], faceIndices, vertexBuffer, normalBuffer, indexBuffer, currentVertexCount);
+        if (z - 1 < 0 || blocks[x][y][z - 1].equals(block.getBlock(block.AIR))) { // Back
+            currentVertexCount = addFace(faceVertices[5], faceNormals[5], faceIndices, vertexBuffer, normalBuffer, indexBuffer, colorBuffer, blockColor, currentVertexCount);
         }
 
         return currentVertexCount;
     }
 
     private boolean isVisible(int x, int y, int z) {
-        return (x - 1 < 0 || blocks[x - 1][y][z] == 0)
-                || (x + 1 >= size || blocks[x + 1][y][z] == 0)
-                || (y - 1 < 0 || blocks[x][y - 1][z] == 0)
-                || (y + 1 >= size || blocks[x][y + 1][z] == 0)
-                || (z - 1 < 0 || blocks[x][y][z - 1] == 0)
-                || (z + 1 >= size || blocks[x][y][z + 1] == 0);
+        return (x - 1 < 0 || blocks[x - 1][y][z].equals(block.getBlock(block.AIR)))
+                || (x + 1 >= SIZE || blocks[x + 1][y][z].equals(block.getBlock(block.AIR)))
+                || (y - 1 < 0 || blocks[x][y - 1][z].equals(block.getBlock(block.AIR)))
+                || (y + 1 >= SIZE || blocks[x][y + 1][z].equals(block.getBlock(block.AIR)))
+                || (z - 1 < 0 || blocks[x][y][z - 1].equals(block.getBlock(block.AIR)))
+                || (z + 1 >= SIZE || blocks[x][y][z + 1].equals(block.getBlock(block.AIR)));
     }
 
-    private int addFace(float[] vertices, float[] normals, int[] indices, List<Float> vertexBuffer, List<Float> normalBuffer, List<Integer> indexBuffer, int vertexCount) {
+    private int addFace(float[] vertices, float[] normals, int[] indices, List<Float> vertexBuffer, List<Float> normalBuffer, List<Integer> indexBuffer, List<Float> colorBuffer, ColorRGBA blockColor, int vertexCount) {
         for (int i = 0; i < vertices.length; i += 3) {
             vertexBuffer.add(vertices[i]);     // x
             vertexBuffer.add(vertices[i + 1]); // y
@@ -166,6 +192,13 @@ public class chunk extends Node {
             normalBuffer.add(normals[i]);     // nx
             normalBuffer.add(normals[i + 1]); // ny
             normalBuffer.add(normals[i + 2]); // nz
+        }
+
+        for (int i = 0; i < 4; i++) {
+            colorBuffer.add(blockColor.r); // Red
+            colorBuffer.add(blockColor.g); // Green
+            colorBuffer.add(blockColor.b); // Blue
+            colorBuffer.add(blockColor.a); // Alpha
         }
 
         for (int index : indices) {
@@ -229,11 +262,12 @@ public class chunk extends Node {
     // }
     //
     // getters and setters for blocks
-    public int getBlock(int x, int y, int z) {
+    public block getBlock(int x, int y, int z) {
         return blocks[x][y][z];
     }
 
     public void setBlock(int x, int y, int z, int id) {
-        blocks[x][y][z] = id;
+        blocks[x][y][z] = block.getBlock(id);
+        checkBlocks();
     }
 }
